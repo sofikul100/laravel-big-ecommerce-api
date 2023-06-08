@@ -1,0 +1,579 @@
+Multiple API Authentication using JWT in Laravel 9
+Share on Facebook 👉
+When building a REST API, sometimes we need multiple API authentication. In this tutorial, I will show you how to implement multiple authentications using JWT in Laravel Nine. In my previous blog, I have shown you how to build a restful API with JWT authentication. You can read this blog.
+
+Well, In this tutorial, I will show you everything from scratch. Let’s install a laravel 9 project using this command.
+
+ code========> laravel new jwt_auth
+
+
+Well, now create a database and connect it to your project. As well as create two models, two migrations files, and two controllers. Follow the below commands
+
+
+ code========> php artisan make:model Product -mc
+ code========> php artisan make:model Customer -mc  
+
+
+
+Well, now install the JWT package for authentication. Run this command in your terminal to install the JWT package. Maybe this command will be changed later, still, they update this package.
+
+
+
+code=========> composer require tomfordrumm/jwt-auth:dev-develop
+
+
+
+
+This command adds a package in your composer.json file like this.
+
+
+
+ code========> "tomfordrumm/jwt-auth": "dev-develop"
+
+
+
+
+Now go to the config/app.php file. In this file, inside the provider’s array add this line on code.
+
+
+
+ code========> 'providers' => [
+        ...
+         Tymon\JWTAuth\Providers\LaravelServiceProvider::class,
+      ]
+
+
+
+Run the following command to publish the package config file. You should now have a config/jwt.php file that allows you to configure the basics of this package.
+
+php artisan vendor:publish --provider="Tymon\JWTAuth\Providers\LaravelServiceProvider"
+Now you have to create a JWT secret key. To do that run this command in your terminal then It will create a secret key in your .env file.
+
+php artisan jwt:secret
+// .env file
+JWT_SECRET=cwreySsAfthkFUHCAJmlAIhNEqBshrGGOchMDyvN1u1sNz4id1VehVXT66c5o9Ti
+Well, now you have to create custom guards for multiple authentications. So, go to the config/auth.php file and changed the code like below.
+
+
+
+ code========> 'guards' => [
+        'web' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
+        'admin_api' => [
+            'driver'   => 'jwt',
+            'provider' => 'users',
+        ],
+        'customer_api' => [
+            'driver'   => 'jwt',
+            'provider' => 'customers',
+        ],
+    ],
+
+
+
+
+
+
+
+Well, Inside the guards array the web is the default guard for web authentications. After the web guard, you have to create your custom guard like this code. Remember for API authentication your driver will be jwt. Now you have to add providers inside the provider’s array according to the guards.
+
+
+
+
+
+
+code========> 'providers' => [
+        'users' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\User::class,
+        ],
+        'customers' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Customer::class,
+        ],
+    ],
+
+
+
+
+
+Well, the users providers map the User model and the customers providers map the Customer model for authentication.
+
+Well, now go to the User and Customer model and implement it with an interface. This interface is the JWT interface. Your code will be like below.
+
+
+
+
+
+
+
+
+User.php
+
+<?php
+
+namespace App\Models;
+
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+use Tymon\JWTAuth\Contracts\JWTSubject;
+
+class User extends Authenticatable implements JWTSubject
+{
+    use HasApiTokens, HasFactory, Notifiable;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+    ];
+
+
+    /**
+     * Get the identifier that will be stored in the subject claim of the JWT.
+     *
+     * @return mixed
+     */
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    /**
+     * Return a key value array, containing any custom claims to be added to the JWT.
+     *
+     * @return array
+     */
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
+}
+
+
+
+
+
+
+
+
+
+Customer.php
+
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+
+class Customer extends Authenticatable implements JWTSubject
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+    ];
+
+
+    /**
+     * Get the identifier that will be stored in the subject claim of the JWT.
+     *
+     * @return mixed
+     */
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    /**
+     * Return a key value array, containing any custom claims to be added to the JWT.
+     *
+     * @return array
+     */
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
+}
+
+
+
+
+
+
+
+
+
+Well, Our model part has been done. Now go to the routes/api.php file to add a couple of APIs. Add this bunch of code.
+
+
+
+
+
+
+
+
+
+
+
+api.php
+
+Route::prefix('products')->controller(ProductController::class)->group(function () {
+    Route::middleware('auth:admin_api')->group(function () {
+        Route::post('/', 'store');
+        Route::post('update/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
+
+    Route::middleware('auth:customer_api')->group(function () {
+        Route::get('/', 'getAllProduct');
+        Route::get('/{id}', 'show');
+    });
+});
+
+
+Route::prefix('admin')->controller(AuthController::class)->group(function () {
+
+    Route::post('login', 'login');
+    Route::post('register', 'register');
+    Route::middleware('auth:admin_api')->group(function () {
+        Route::post('logout', 'logout');
+        Route::post('me', 'me');
+    });
+});
+
+Route::prefix('customer')->controller(CustomerAuthController::class)->group(function () {
+
+    Route::post('login', 'login');
+    Route::post('register', 'register');
+    Route::middleware('auth:admin_api')->group(function () {
+        Route::post('logout', 'logout');
+        Route::post('me', 'me');
+    });
+});
+
+
+
+
+
+
+Well, in this API file I added a middleware that I defined before. This middleware protected our API from unauthenticated users. Well now add this code to your controller. I defined two-controller before.
+
+
+
+
+
+
+
+
+
+App\Http\Controllers\ProductController.php
+
+public function getAllProduct()
+    {
+        try {
+            $data = Product::get();
+            return sendSuccessResponse($data);
+        } catch (QueryException $e) {
+            return sendErrorResponse("Something Went Wrong!", $e->getMessage(), 500);
+        }
+    }
+    public function store($data = [])
+    {
+        try {
+            Product::create($data);
+            return sendSuccessResponse([], 'Data Created Successfully!', 201);
+        } catch (QueryException $e) {
+            return sendErrorResponse("Something Went Wrong!", $e->getMessage(), 500);
+        }
+    }
+    public function show($id)
+    {
+        try {
+            $data = Product::find($id);
+            if ($data) {
+                return sendSuccessResponse($data);
+            } else {
+                return sendErrorResponse([], 'Data Not found!', 404);
+            }
+        } catch (QueryException $e) {
+            return sendErrorResponse("Something Went Wrong!", $e->getMessage(), 500);
+        }
+    }
+    public function update($data = [], $id)
+    {
+        try {
+            $data = Product::find($id)->update($data);
+            return sendSuccessResponse($data, 'Data Updated Successfully!');
+        } catch (QueryException $e) {
+            return sendErrorResponse("Something Went Wrong!", $e->getMessage(), 500);
+        }
+    }
+    public function delete($id)
+    {
+        try {
+            $product =  Product::find($id);
+            if ($product) {
+                $product->delete();
+                return sendSuccessResponse([], 'Data Deleted Successfully!', 200);
+            }
+        } catch (QueryException $e) {
+            return sendErrorResponse("Something Went Wrong!", $e->getMessage(), 500);
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+Well, you may notice When I return a response I used a helper function. For this helper function, I defined I custom helper file. If you don’t know how to add a custom helper file in laravel application the read this blog.
+
+Well, now Create a Controller for User and Customer authentications. I assume you are able to create the controller. Inside the controller, you code like below.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+App\Http\Controllers\AuthController.php
+
+ public function login()
+    {
+        $credentials = request(['email', 'password']);
+        if (!$token = auth()->guard('admin_api')->attempt($credentials)) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        return $this->respondWithToken($token);
+    }
+
+    /**
+     * Get the authenticated User.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function me()
+    {
+        return response()->json(auth('admin_api')->user());
+    }
+
+    /**
+     * Log the user out (Invalidate the token).
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function logout()
+    {
+        auth('admin_api')->logout();
+
+        return response()->json(['message' => 'Successfully logged out']);
+    }
+
+    /**
+     * Refresh a token.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function refresh()
+    {
+        return $this->respondWithToken(auth('admin_api')->refresh());
+    }
+
+    /**
+     * Get the token array structure.
+     *
+     * @param  string $token
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithToken($token)
+    {
+        return response()->json([
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->guard('admin_api')->factory()->getTTL() * 60
+        ]);
+    }
+
+    public function register(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|between:2,100',
+            'email' => 'required|string|email|max:100|unique:users',
+            'password' => 'required|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors()->toJson(), 400);
+        }
+
+        $user = User::create(array_merge(
+            $validator->validated(),
+            ['password' => bcrypt($request->password)]
+        ));
+
+        return response()->json([
+            'message' => 'User successfully registered',
+            'user' => $user
+        ], 201);
+    }
+
+
+
+
+
+
+
+
+
+
+
+    
+In this controller file, I added User or admin-related authenticated stuff. Remember You have to define a custom guard name when you access in Model or JWT.
+
+
+
+
+
+
+
+App\Http\Controllers\CustomerAuthController.php
+
+ public function login()
+    {
+        $credentials = request(['email', 'password']);
+        if (!$token = auth()->guard('customer_api')->attempt($credentials)) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        return $this->respondWithToken($token);
+    }
+
+    /**
+     * Get the authenticated User.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function me()
+    {
+        return response()->json(auth('customer_api')->user());
+    }
+
+    /**
+     * Log the user out (Invalidate the token).
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function logout()
+    {
+        auth('customer_api')->logout();
+
+        return response()->json(['message' => 'Successfully logged out']);
+    }
+
+    /**
+     * Refresh a token.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function refresh()
+    {
+        return $this->respondWithToken(auth('customer_api')->refresh());
+    }
+
+    /**
+     * Get the token array structure.
+     *
+     * @param  string $token
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    protected function respondWithToken($token)
+    {
+        return response()->json([
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => auth()->guard('customer_api')->factory()->getTTL() * 60
+        ]);
+    }
+
+    public function register(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|between:2,100',
+            'email' => 'required|string|email|max:100|unique:customers',
+            'password' => 'required|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors()->toJson(), 400);
+        }
+
+        $user = Customer::create(array_merge(
+            $validator->validated(),
+            ['password' => bcrypt($request->password)]
+        ));
+
+        return response()->json([
+            'message' => 'Customer successfully registered',
+            'user' => $user
+        ], 201);
+    }
