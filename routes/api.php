@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategorieController;
+use App\Http\Controllers\Api\ChildcategorieController;
 use App\Http\Controllers\Api\CustomerAuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -33,16 +34,48 @@ Route::group(['prefix'=>'admin','as'=>'admin'], function(){
 //=================== all categories routes here============//
 Route::group(['prefix'=>'categorie','as'=>'categorie'], function(){
     Route::middleware('auth:admin_api')->group(function () {
+        //----only admin access routes---------//
         Route::post('create',[CategorieController::class,'create']);
+        Route::delete('delete/{id}',[CategorieController::class,'delete']);
+        Route::post('update/{id}',[CategorieController::class,'update']);
     });
 
     Route::middleware('auth:customer_api')->group(function () {
-       
+        //----------- customer can access those routes after login-------//
     });
 
-    //==========public routes=========//
-    Route::get('categories',[CategorieController::class,'index']);
+    //------------public routes-------------/
+    Route::get('/',[CategorieController::class,'index']);
+    Route::get('single/{id}',[CategorieController::class,'getSingleCategorie']);
 });
+
+
+
+
+//=================== all child categories routes here===============//
+Route::group(['prefix'=>'child-categorie','as'=>'child-categorie'], function(){
+    Route::middleware('auth:admin_api')->group(function () {
+         //----only admin access routes---------//
+         Route::post('create',[ChildcategorieController::class,'create']);
+         Route::delete('delete/{id}',[ChildcategorieController::class,'delete']);
+         Route::post('update/{id}',[ChildcategorieController::class,'update']);
+    });
+
+    Route::middleware('auth:customer_api')->group(function () {
+     //----------- customer can access those routes after login-------//
+
+    });
+
+    //------------public routes----------------/
+    Route::get('/',[ChildcategorieController::class,'index']);
+    Route::get('single/{id}',[ChildcategorieController::class,'getSingleChildcategorie']);
+});
+
+
+
+
+
+
 
 
 
